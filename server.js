@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 8000;
 
 // ---- 設定（ここを変えると、部屋の人数などが変わる） ----
 const MAX_PLAYERS = 6;            // 1つの部屋に入れる人数の上限
+const MIN_PLAYERS = 2;            // ゲームを始めるのに必要な人数
 const MAX_NAME_LENGTH = 12;       // 名前の最大文字数
 // 公開ポートは誰でも接続できるため、1通のサイズと送信頻度に上限を設ける
 const MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -184,6 +185,7 @@ wss.on('connection', (ws) => {
             case 'start': {
                 const room = rooms.get(ws.roomId);
                 if (!room || ws.playerId !== room.hostId || room.started) return;
+                if (room.players.size < MIN_PLAYERS) return send(ws, { type: 'error', message: `ゲームを始めるには${MIN_PLAYERS}人以上必要です。` });
                 room.started = true;
                 const order = playerList(room).map((p) => p.id);
                 for (let i = order.length - 1; i > 0; i--) {

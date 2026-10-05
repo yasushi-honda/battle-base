@@ -3,6 +3,7 @@
 // ===== このサンプル: ミニ人生ゲーム（ターン制・2〜6人） =====
 // ・順番にさいころを振り、コマを進める
 // ・止まったマスのイベントで、お金が増えたり減ったり、1回休みになったりする
+//   （「進む・戻る」マスで動いた先のマスでも、そのイベントが起きる）
 // ・全員がゴールしたら、お金がいちばん多い人の勝ち
 //
 // ★ まず触ってみよう（どれも、このファイルの上のほうを書き換えるだけ）
@@ -120,6 +121,21 @@ export function startGame(ctx) {
         logEl.prepend(el('div', '', text));
     }
 
+    // 止まったマスのイベントを起こす。メッセージを返す。
+    // 「進む・戻る」マスで動いた先でも、そのマスのイベントが起きる（ただし、続けて動くのは1回だけ）
+    function resolveSquare(p, canMove) {
+        const sq = BOARD[p.pos];
+        if (sq.type === 'plus') { p.money += sq.amount; return `「${sq.label}」+${sq.amount}万円！`; }
+        if (sq.type === 'minus') { p.money -= sq.amount; return `「${sq.label}」-${sq.amount}万円…`; }
+        if (sq.type === 'skip') { p.skip = 1; return `「${sq.label}」次は1回休み。`; }
+        if (sq.type === 'move' && canMove) {
+            p.pos = Math.max(0, Math.min(p.pos + sq.steps, GOAL_INDEX));
+            const text = `「${sq.label}」${sq.steps > 0 ? sq.steps + 'マス進む' : -sq.steps + 'マス戻る'}（${p.pos}マス目）。`;
+            return text + resolveSquare(p, false);
+        }
+        return '';
+    }
+
     // さいころの目を反映する（自分が振ったときも、誰かから届いたときも、同じ関数を使う）
     function applyRoll(id, value) {
         if (over) return;
@@ -130,14 +146,7 @@ export function startGame(ctx) {
         p.pos = Math.min(p.pos + value, GOAL_INDEX);
         let message = `${p.name} は ${value} が出て ${p.pos} マス目へ。`;
 
-        const sq = BOARD[p.pos];
-        if (sq.type === 'plus') { p.money += sq.amount; message += `「${sq.label}」+${sq.amount}万円！`; }
-        if (sq.type === 'minus') { p.money -= sq.amount; message += `「${sq.label}」-${sq.amount}万円…`; }
-        if (sq.type === 'skip') { p.skip = 1; message += `「${sq.label}」次は1回休み。`; }
-        if (sq.type === 'move') {
-            p.pos = Math.max(0, Math.min(p.pos + sq.steps, GOAL_INDEX));
-            message += `「${sq.label}」${sq.steps > 0 ? sq.steps + 'マス進む' : -sq.steps + 'マス戻る'}（${p.pos}マス目）。`;
-        }
+        message += resolveSquare(p, true);
         if (p.pos >= GOAL_INDEX) {
             p.finished = true;
             p.rank = ++finishedCount;
