@@ -41,6 +41,8 @@ function renderRoom() {
         }
         list.append(li);
     }
+    // ゲーム中は、参加者の一覧をゲーム画面（game.js）にまかせて隠す
+    list.hidden = started;
     const isHost = me === hostId;
     $('start-btn').hidden = started || !isHost;
     $('start-btn').disabled = players.length < 2;

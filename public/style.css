@@ -29,9 +29,42 @@ li { padding: 8px 12px; margin-bottom: 6px; background: #0d1424; border-radius: 
 .badge { font-size: .75rem; background: #f6b82f; color: #1a1300; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
 .note { color: #9fb0d4; font-size: .9rem; }
 #toast { min-height: 1.6em; color: #ffd166; }
-/* 以下は、サンプルのゲーム（game.js）用 */
-.track { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-.lane { background: #0d1424; border-radius: 8px; padding: 6px 10px; }
-.bar { height: 10px; background: #5ee0ff; border-radius: 5px; transition: width .3s; }
-.turn { font-weight: bold; color: #5ee0ff; }
-#game-log { max-height: 160px; overflow: auto; font-size: .85rem; color: #9fb0d4; }
+/* ロビーの説明 */
+.about { background: #121c30; border: 1px solid #2a3a5c; border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-size: .9rem; }
+.about h2 { margin: 0 0 6px; font-size: 1rem; color: #5ee0ff; }
+.about ul { margin: 6px 0; padding-left: 1.2em; list-style: disc; }
+.about li { padding: 0; margin: 2px 0; background: none; border-radius: 0; }
+
+/* 以下は、サンプルのゲーム（game.js: ミニ人生ゲーム）用 */
+.jg { display: flex; flex-direction: column; gap: 12px; }
+.jg-turn { text-align: center; font-weight: bold; padding: 10px; border-radius: 8px; background: #0d1424; color: #5ee0ff; }
+.jg-turn--end { background: #f6b82f; color: #1a1300; }
+.jg-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.jg-sq {
+  position: relative; min-height: 76px; padding: 4px 3px 3px; border-radius: 6px;
+  background: #0d1424; border: 1px solid #2a3a5c; font-size: .66rem; line-height: 1.25;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+}
+.jg-sq-no { position: absolute; top: 2px; left: 4px; color: #6b7fa8; font-size: .6rem; }
+.jg-sq-label { margin-top: 10px; min-height: 2.5em; }
+.jg-sq-note { font-weight: bold; }
+.jg-sq--plus { background: #123a2a; border-color: #2f8f63; }
+.jg-sq--minus { background: #3d1a22; border-color: #a4414f; }
+.jg-sq--skip { background: #3a3315; border-color: #a38a2a; }
+.jg-sq--move { background: #162a4a; border-color: #3a74c4; }
+.jg-sq--start, .jg-sq--goal { background: #2a2250; border-color: #7b61ff; font-weight: bold; }
+.jg-pawns { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; margin-top: auto; }
+.jg-pawn {
+  width: 18px; height: 18px; border-radius: 50%; color: #101826; font-size: .65rem; font-weight: bold;
+  display: inline-flex; align-items: center; justify-content: center; border: 1px solid #fff8;
+}
+.jg-controls { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.jg-dice { font-size: 3rem; line-height: 1; }
+.jg-panel { display: flex; flex-direction: column; gap: 6px; }
+.jg-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #0d1424; border-radius: 8px; border: 1px solid transparent; }
+.jg-row--now { border-color: #5ee0ff; }
+.jg-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+.jg-name { flex: 1; }
+.jg-status { color: #ffd166; font-size: .8rem; }
+.jg-money { font-weight: bold; min-width: 4.5em; text-align: right; }
+.jg-log { max-height: 180px; overflow: auto; font-size: .82rem; color: #9fb0d4; display: flex; flex-direction: column; gap: 2px; }
