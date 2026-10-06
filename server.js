@@ -15,6 +15,8 @@ const PORT = process.env.PORT || 8000;
 const MAX_PLAYERS = 6;            // 1つの部屋に入れる人数の上限
 const MIN_PLAYERS = 2;            // ゲームを始めるのに必要な人数
 const MAX_ROOMS = 30;             // 同時に作れる部屋の数の上限（作りすぎを防ぐ）
+// 1人だけで始まらないまま、この時間がたった部屋は閉じる（枠を埋めたままにされるのを防ぐ）
+const ROOM_IDLE_MS = Number(process.env.ROOM_IDLE_MS) || 30 * 60 * 1000;
 const MAX_NAME_LENGTH = 12;       // 名前の最大文字数
 // 公開ポートは誰でも接続できるため、1通のサイズと送信頻度に上限を設ける
 const MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -174,7 +176,7 @@ wss.on('connection', (ws) => {
             case 'create_room': {
                 if (ws.roomId) return;
                 if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', message: '部屋が多すぎます。しばらくしてからやり直してください。' });
-                const room = { id: generateRoomId(), players: new Map(), hostId: null, started: false, seq: 0, relayed: 0 };
+                const room = { id: generateRoomId(), players: new Map(), hostId: null, started: false, seq: 0, relayed: 0, createdAt: Date.now() };
                 rooms.set(room.id, room);
                 const you = addPlayer(room, ws, msg.name);
                 log(`部屋 ${room.id}: ${room.players.get(you).name} が部屋を作りました`);
@@ -257,15 +259,23 @@ const interval = setInterval(() => {
     });
 }, 30000);
 
-// 遊んでいる間の動きを、1分ごとに1行だけ出す（1通ごとに出すと、多すぎるため）
+// 1分ごとの見回り: ① 遊んでいる間の動きを1行だけ出す（1通ごとに出すと多すぎるため）
+// ② 開始人数にならないまま長く放置された部屋を閉じる
 const logInterval = setInterval(() => {
     for (const room of rooms.values()) {
         if (room.relayed > 0) {
             log(`部屋 ${room.id}: メッセージを${room.relayed}通中継（直近1分）`);
             room.relayed = 0;
         }
+        if (!room.started && room.players.size < MIN_PLAYERS && Date.now() - room.createdAt > ROOM_IDLE_MS) {
+            log(`部屋 ${room.id}: ${MIN_PLAYERS}人そろわないまま長くたったので閉じます`);
+            for (const p of [...room.players.values()]) {
+                send(p.ws, { type: 'error', message: '長い間だれも来なかったので、部屋を閉じました。' });
+                p.ws.close(); // 閉じると、handleLeave が部屋を片付ける
+            }
+        }
     }
-}, 60000);
+}, Math.min(60000, ROOM_IDLE_MS));
 
 wss.on('close', () => {
     clearInterval(interval);
