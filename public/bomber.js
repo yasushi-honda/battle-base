@@ -533,6 +533,12 @@ export function startGame(ctx) {
         if (canStand(nx, ny)) {
             me.x = nx;
             me.y = ny;
+            // 通路を進んでいる間は、横方向のずれを少しずつ通路の中心へ戻す（次の角で引っかかりにくくする）
+            const side = dx !== 0 ? me.y : me.x;
+            const diff = Math.round(side) - side;
+            const step = Math.sign(diff) * Math.min(Math.abs(diff), dist * 0.5);
+            if (step !== 0 && dx !== 0 && canStand(me.x, me.y + step)) me.y += step;
+            if (step !== 0 && dy !== 0 && canStand(me.x + step, me.y)) me.x += step;
             return;
         }
         // ぶつかる場合は、壁の手前ぴったりまで進む
