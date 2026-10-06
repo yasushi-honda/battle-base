@@ -143,9 +143,10 @@ export function startGame(ctx) {
     const bombAt = (x, y) => bombs.find((b) => b.x === x && b.y === y);
 
     // 爆弾を置く（自分が置いたときも、誰かから届いたときも、同じ関数を使う）
+    // 数の上限は、置く本人の画面だけで守る（受け取る側は、導火線の数え始めがずれるので、少し多めに許す）
     function addBomb(owner, x, y) {
         if (over || !inBoard(x, y) || grid[y][x] === WALL || bombAt(x, y)) return false;
-        if (bombs.filter((b) => b.owner === owner).length >= MAX_BOMBS) return false;
+        if (bombs.filter((b) => b.owner === owner).length >= MAX_BOMBS * 3) return false;
         bombs.push({ x, y, owner, at: Date.now() + FUSE_MS }); // 届いた時刻から導火線を数える
         return true;
     }
@@ -175,6 +176,7 @@ export function startGame(ctx) {
 
     function placeBomb() {
         if (over || !mine.alive || Date.now() < startAt) return;
+        if (bombs.filter((b) => b.owner === ctx.me).length >= MAX_BOMBS) return;
         if (addBomb(ctx.me, mine.x, mine.y)) ctx.send({ kind: 'bomb', x: mine.x, y: mine.y });
     }
 
@@ -222,7 +224,8 @@ export function startGame(ctx) {
             lastSentAt = now;
         }
 
-        if (endAt && !over && now >= endAt) finish();
+        // 爆弾や爆風が残っている間は、まだ誰かがやられるかもしれないので待つ
+        if (endAt && !over && now >= endAt && bombs.length === 0 && fires.size === 0) finish();
 
         // 導火線が燃え尽きた爆弾を爆発させる
         for (const b of [...bombs]) {
