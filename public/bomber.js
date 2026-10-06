@@ -25,6 +25,8 @@
 //   ③ やられたかどうかは「本人」が判定して、1回だけ送る（kind:'dead'）
 //   ④ 最初のブロック配置は、みんなで共通の ctx.seed から作るので、送らなくても同じになる
 // 受け取った側は、通信にかかった時間のぶん、爆弾のタイミングが少しずれることがある（このサンプルは許容している）。
+// 近くで2つの爆弾が同時に爆発すると、画面ごとに爆発の順番が入れかわり、壊れるブロックが少し変わることもある。
+// （ぴったり合わせるには「爆発する時刻」も送る、などの工夫が必要。改造の挑戦テーマにしてよい）
 //
 // ctx の説明は game.js の先頭を見ること。
 // 注意: 名前など他の人から届いた文字は、textContent で表示する（innerHTML に入れない）。
@@ -39,6 +41,7 @@ const FIRE_MS = 400;          // 爆風が残る時間（ミリ秒）
 const MOVE_MS = 150;          // 1マス進むのにかかる時間（ミリ秒）
 const MAX_BOMBS = 2;          // 同時に置ける爆弾の数
 const COUNTDOWN_MS = 3000;    // 開始前のカウントダウン
+const END_WAIT_MS = 600;      // 最後の1人が決まってから、勝敗を出すまで待つ時間（遅れて届くデータを待つ）
 const SEND_INTERVAL_MS = 100; // 位置を送る間隔の下限（100ms = 1秒に最大10回）
 
 const COLORS = ['#ff5d73', '#4da3ff', '#ffd23f', '#4ade80', '#c084fc', '#fb923c'];
@@ -101,6 +104,7 @@ export function startGame(ctx) {
     const startAt = Date.now() + COUNTDOWN_MS;
     let over = false;
     let resultText = '';
+    let endAt = 0;            // 生き残りが1人以下になった時刻（0 = まだ）
     let dir = null;           // 今押している方向
     let tapDir = null;        // ちょん押しした方向（短く押しても、1マスは必ず進めるため）
     let nextMoveAt = 0;
@@ -181,11 +185,14 @@ export function startGame(ctx) {
         checkWinner();
     }
 
-    // 生き残りが1人以下になったら終わり
+    // 生き残りが1人以下になったら、少し待ってから終わりにする
+    // （同じ爆発でほぼ同時にやられた人の 'dead' が、遅れて届くのを待つため。待たないと引き分けにならない）
     function checkWinner() {
-        if (over) return;
+        if (over || endAt) return;
+        if (state.filter((p) => p.alive && !p.left).length <= 1) endAt = Date.now() + END_WAIT_MS;
+    }
+    function finish() {
         const alive = state.filter((p) => p.alive && !p.left);
-        if (alive.length > 1) return;
         over = true;
         resultText = alive.length === 1 ? `ゲーム終了！ ${alive[0].name} の勝ち！` : 'ゲーム終了！ 引き分け';
     }
@@ -214,6 +221,8 @@ export function startGame(ctx) {
             dirty = false;
             lastSentAt = now;
         }
+
+        if (endAt && !over && now >= endAt) finish();
 
         // 導火線が燃え尽きた爆弾を爆発させる
         for (const b of [...bombs]) {
