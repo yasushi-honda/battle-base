@@ -499,7 +499,7 @@ export function startGame(ctx) {
     }
 
     // ========== 自分の動き（どの画面でも、自分のキャラだけはここで動かす） ==========
-    let held = [];          // 押しているキー（最後に押した向きを使う）
+    let held = [];          // 押しているキー（キーそのものを覚える。最後に押したキーの向きを使う）
     let padDir = null;      // スマホの方向パッドの向き
     let bombWanted = false; // 爆弾ボタンが押された（次に送るときに bombReq を送る）
     let lastBombReqAt = 0;
@@ -608,7 +608,7 @@ export function startGame(ctx) {
         lastFrame = now;
 
         // 自分の移動
-        const dir = held[held.length - 1] ?? padDir;
+        const dir = KEYS[held[held.length - 1]] ?? padDir;
         me.moving = false;
         if (!over && me.alive && now >= goAt && dir) {
             const bx = me.x, by = me.y;
@@ -759,6 +759,8 @@ export function startGame(ctx) {
     }
 
     // ========== 入力 ==========
+    // Shift を押しながらでも同じキーとして扱う（w と W を同じにする）
+    const keyName = (e) => (e.key.length === 1 ? e.key.toLowerCase() : e.key);
     function onKeyDown(e) {
         if (e.target instanceof HTMLInputElement) return;
         if (e.key === ' ') {
@@ -766,12 +768,15 @@ export function startGame(ctx) {
             if (!e.repeat) requestBomb();
         } else if (KEYS[e.key]) {
             e.preventDefault();
-            held = held.filter((d) => d !== KEYS[e.key]);
-            held.push(KEYS[e.key]);
+            // W と ↑ のように同じ向きのキーを2つ押していても、片方を離しただけでは止まらないように、
+            // 向きではなくキーそのものを覚えておく
+            const k = keyName(e);
+            held = held.filter((x) => x !== k);
+            held.push(k);
         }
     }
     function onKeyUp(e) {
-        if (KEYS[e.key]) held = held.filter((d) => d !== KEYS[e.key]);
+        if (KEYS[e.key]) held = held.filter((x) => x !== keyName(e));
     }
     function onBlur() {
         held = []; // 画面の外に出たら、押しっぱなしを解除する
