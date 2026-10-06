@@ -76,6 +76,14 @@ function generateRoomId() {
     return rooms.has(id) ? generateRoomId() : id;
 }
 
+// サーバーの動きを、ターミナルに1行で出す。
+// ターミナルへの出力があると、Codespacesの「操作なしで停止」までの時間がリセットされる（公式）。
+// 名前は他の人が入力した文字なので、端末を乱す制御文字は取り除いてから出す
+function log(text) {
+    const time = new Date().toLocaleTimeString('ja-JP', { hour12: false });
+    console.log(`[${time}] ${String(text).replace(/[\u0000-\u001f\u007f]/g, '')}`);
+}
+
 function send(ws, data) {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
@@ -95,7 +103,7 @@ function sendPlayers(room) {
 }
 
 function cleanName(name) {
-    const s = String(name ?? '').trim().slice(0, MAX_NAME_LENGTH);
+    const s = String(name ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_NAME_LENGTH);
     return s || 'ななし';
 }
 
@@ -111,12 +119,15 @@ function addPlayer(room, ws, name) {
 function handleLeave(ws) {
     const room = rooms.get(ws.roomId);
     if (!room) return;
+    const leaving = room.players.get(ws.playerId);
     room.players.delete(ws.playerId);
     ws.roomId = null;
     ws.playerId = null;
+    log(`部屋 ${room.id}: ${leaving?.name ?? '誰か'} が出ました（残り${room.players.size}人）`);
 
     if (room.players.size === 0) {
         rooms.delete(room.id);
+        log(`部屋 ${room.id}: 誰もいなくなったので閉じました`);
         return;
     }
     // 部屋のリーダー（ホスト）が抜けたら、残った先頭の人に引き継ぐ
@@ -156,9 +167,10 @@ wss.on('connection', (ws) => {
         switch (msg.type) {
             case 'create_room': {
                 if (ws.roomId) return;
-                const room = { id: generateRoomId(), players: new Map(), hostId: null, started: false, seq: 0 };
+                const room = { id: generateRoomId(), players: new Map(), hostId: null, started: false, seq: 0, relayed: 0 };
                 rooms.set(room.id, room);
                 const you = addPlayer(room, ws, msg.name);
+                log(`部屋 ${room.id}: ${room.players.get(you).name} が部屋を作りました`);
                 send(ws, {
                     type: 'room_joined', roomId: room.id, you,
                     players: playerList(room), hostId: room.hostId, maxPlayers: MAX_PLAYERS,
@@ -173,6 +185,7 @@ wss.on('connection', (ws) => {
                 if (room.started) return send(ws, { type: 'error', message: 'この部屋はもうゲームが始まっています。' });
                 if (room.players.size >= MAX_PLAYERS) return send(ws, { type: 'error', message: 'この部屋は満員です。' });
                 const you = addPlayer(room, ws, msg.name);
+                log(`部屋 ${room.id}: ${room.players.get(you).name} が入りました（${room.players.size}人）`);
                 send(ws, {
                     type: 'room_joined', roomId: room.id, you,
                     players: playerList(room), hostId: room.hostId, maxPlayers: MAX_PLAYERS,
@@ -187,6 +200,7 @@ wss.on('connection', (ws) => {
                 if (!room || ws.playerId !== room.hostId || room.started) return;
                 if (room.players.size < MIN_PLAYERS) return send(ws, { type: 'error', message: `ゲームを始めるには${MIN_PLAYERS}人以上必要です。` });
                 room.started = true;
+                log(`部屋 ${room.id}: ゲーム開始（${room.players.size}人）`);
                 const order = playerList(room).map((p) => p.id);
                 for (let i = order.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
@@ -203,6 +217,7 @@ wss.on('connection', (ws) => {
                 const room = rooms.get(ws.roomId);
                 if (!room || !room.started) return;
                 broadcast(room, { type: 'message', from: ws.playerId, payload: msg.payload }, ws.playerId);
+                room.relayed++;
                 break;
             }
 
@@ -211,6 +226,7 @@ wss.on('connection', (ws) => {
                 const room = rooms.get(ws.roomId);
                 if (!room || ws.playerId !== room.hostId || !room.started) return;
                 room.started = false;
+                log(`部屋 ${room.id}: ロビーに戻りました`);
                 broadcast(room, { type: 'lobby' });
                 sendPlayers(room);
                 break;
@@ -234,7 +250,20 @@ const interval = setInterval(() => {
     });
 }, 30000);
 
-wss.on('close', () => clearInterval(interval));
+// 遊んでいる間の動きを、1分ごとに1行だけ出す（1通ごとに出すと、多すぎるため）
+const logInterval = setInterval(() => {
+    for (const room of rooms.values()) {
+        if (room.relayed > 0) {
+            log(`部屋 ${room.id}: メッセージを${room.relayed}通中継（直近1分）`);
+            room.relayed = 0;
+        }
+    }
+}, 60000);
+
+wss.on('close', () => {
+    clearInterval(interval);
+    clearInterval(logInterval);
+});
 
 server.listen(PORT, () => {
     console.log(`Battle Base Server running on http://localhost:${PORT}`);
