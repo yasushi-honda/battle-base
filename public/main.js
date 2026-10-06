@@ -1,7 +1,11 @@
 // ロビー（部屋を作る／入る／参加者の一覧／ゲーム開始）を担当するファイル。
 // ふだんは書き換えなくてよい。ゲームの中身は game.js に書く。
 import { createNet } from './net.js';
-import { startGame } from './game.js';
+
+const params = new URLSearchParams(location.search);
+// URL に ?game=bomber が付いていたら bomber.js（ボンバーマン）、なければ game.js（人生ゲーム）
+const gameName = params.get('game') === 'bomber' ? 'bomber' : '';
+const { startGame } = await import(gameName ? './bomber.js' : './game.js');
 
 const $ = (id) => document.getElementById(id);
 const net = createNet();
@@ -13,7 +17,6 @@ let players = [];
 let messageHandlers = [];
 let playersHandlers = [];
 
-const params = new URLSearchParams(location.search);
 if (params.get('room')) $('room-code').value = params.get('room').toUpperCase().slice(0, 4);
 $('name').value = localStorage.getItem('battle-base-name') ?? '';
 
@@ -140,7 +143,7 @@ $('leave-btn').addEventListener('click', () => {
     showLobby();
 });
 $('copy-btn').addEventListener('click', async () => {
-    const url = `${location.origin}${location.pathname}?room=${$('room-id').textContent}`;
+    const url = `${location.origin}${location.pathname}?room=${$('room-id').textContent}${gameName ? `&game=${gameName}` : ''}`;
     try {
         await navigator.clipboard.writeText(url);
         toast('招待リンクをコピーしました。チームに送ってください。');
