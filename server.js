@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 8000;
 // ---- 設定（ここを変えると、部屋の人数などが変わる） ----
 const MAX_PLAYERS = 6;            // 1つの部屋に入れる人数の上限
 const MIN_PLAYERS = 2;            // ゲームを始めるのに必要な人数
+const MAX_ROOMS = 30;             // 同時に作れる部屋の数の上限（作りすぎを防ぐ）
 const MAX_NAME_LENGTH = 12;       // 名前の最大文字数
 // 公開ポートは誰でも接続できるため、1通のサイズと送信頻度に上限を設ける
 const MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -81,7 +82,12 @@ function generateRoomId() {
 // 名前は他の人が入力した文字なので、端末を乱す制御文字は取り除いてから出す
 function log(text) {
     const time = new Date().toLocaleTimeString('ja-JP', { hour12: false });
-    console.log(`[${time}] ${String(text).replace(/[\u0000-\u001f\u007f]/g, '')}`);
+    console.log(`[${time}] ${stripInvisible(text)}`);
+}
+
+// 制御文字（C0・C1）、書式文字（表示の向きを変えるものなど）、行区切りを取り除く
+function stripInvisible(text) {
+    return String(text ?? '').replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, '');
 }
 
 function send(ws, data) {
@@ -103,7 +109,7 @@ function sendPlayers(room) {
 }
 
 function cleanName(name) {
-    const s = String(name ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_NAME_LENGTH);
+    const s = stripInvisible(name).trim().slice(0, MAX_NAME_LENGTH);
     return s || 'ななし';
 }
 
@@ -167,6 +173,7 @@ wss.on('connection', (ws) => {
         switch (msg.type) {
             case 'create_room': {
                 if (ws.roomId) return;
+                if (rooms.size >= MAX_ROOMS) return send(ws, { type: 'error', message: '部屋が多すぎます。しばらくしてからやり直してください。' });
                 const room = { id: generateRoomId(), players: new Map(), hostId: null, started: false, seq: 0, relayed: 0 };
                 rooms.set(room.id, room);
                 const you = addPlayer(room, ws, msg.name);
